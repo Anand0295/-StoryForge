@@ -2,13 +2,13 @@
 
 import os
 
-print("Developer Testing Utility.")
+print("StoryForge Testing Utility - Local Model Selection")
 
 # Get Choice For Model
 print("Chose Model: ")
 print("-------------------------------------------")
-print("1 -> Gemini 1.5 flash, llama70b for editing")
-print("2 -> Gemini 1.5 flash, Gemini 1.5 flash for editing")
+print("1 -> Local llama3.2:latest (recommended)")
+print("2 -> Local llama3.1:latest (higher quality)")
 print("3 -> Gemini 1.5 pro, Gemini 1.5 flash for editing")
 print("4 -> Gemini 1.5 pro, Gemini 1.5 pro for editing")
 print("5 -> ollama://mistral:7b, ollama://mistral:7b for editing (fast debug test, produces crap output)")
@@ -72,21 +72,10 @@ if ExtraFlags == "":
 # Terrible but effective way to manage the choices
 if (choice == "1"):
     os.system(f'''
-cd .. && ./Write.py \
+cd .. && python Write.py \
 -Seed 999 \
 -Prompt {Prompt} \
--InitialOutlineModel google://gemini-1.5-flash \
--ChapterOutlineModel google://gemini-1.5-flash \
--ChapterS1Model google://gemini-1.5-flash \
--ChapterS2Model google://gemini-1.5-flash \
--ChapterS3Model google://gemini-1.5-flash \
--ChapterS4Model google://gemini-1.5-flash \
--ChapterRevisionModel google://gemini-1.5-flash \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
+-NoChapterRevision {ExtraFlags}
               ''')
 
 elif (choice == "2"):

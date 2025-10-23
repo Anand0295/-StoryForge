@@ -80,42 +80,7 @@ class Interface:
                     self.Clients[Model] = ollama.Client(host=OllamaHost)
                     print(f"OLLAMA Host is '{OllamaHost}'")
 
-                elif Provider == "google":
-                    # Validate Google API Key
-                    if (
-                        not "GOOGLE_API_KEY" in os.environ
-                        or os.environ["GOOGLE_API_KEY"] == ""
-                    ):
-                        raise Exception(
-                            "GOOGLE_API_KEY not found in environment variables"
-                        )
-                    self.ensure_package_is_installed("google-generativeai")
-                    import google.generativeai as genai
-
-                    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-                    self.Clients[Model] = genai.GenerativeModel(
-                        model_name=ProviderModel
-                    )
-
-                elif Provider == "openai":
-                    raise NotImplementedError("OpenAI API not supported")
-
-                elif Provider == "openrouter":
-                    if (
-                        not "OPENROUTER_API_KEY" in os.environ
-                        or os.environ["OPENROUTER_API_KEY"] == ""
-                    ):
-                        raise Exception(
-                            "OPENROUTER_API_KEY not found in environment variables"
-                        )
-                    from Writer.Interface.OpenRouter import OpenRouter
-
-                    self.Clients[Model] = OpenRouter(
-                        api_key=os.environ["OPENROUTER_API_KEY"], model=ProviderModel
-                    )
-
-                elif Provider == "Anthropic":
-                    raise NotImplementedError("Anthropic API not supported")
+                # Only Ollama supported for local generation
 
                 else:
                     print(f"Warning, ")
@@ -299,96 +264,7 @@ class Interface:
                             "Generation Failed, Max Retires Exceeded, Aborting"
                         )
 
-        elif Provider == "google":
-
-            from google.generativeai.types import (
-                HarmCategory,
-                HarmBlockThreshold,
-            )
-
-            # replace "content" with "parts" for google
-            _Messages = [{"role": m["role"], "parts": m["content"]} for m in _Messages]
-            for m in _Messages:
-                if "content" in m:
-                    m["parts"] = m["content"]
-                    del m["content"]
-                if "role" in m and m["role"] == "assistant":
-                    m["role"] = "model"
-                    # Google doesn't support "system" role while generating content (only while instantiating the model)
-                if "role" in m and m["role"] == "system":
-                    m["role"] = "user"
-
-            MaxRetries = 3
-            while True:
-                try:
-                    Stream = self.Clients[_Model].generate_content(
-                        contents=_Messages,
-                        stream=True,
-                        safety_settings={
-                            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                        },
-                    )
-                    _Messages.append(self.StreamResponse(Stream, Provider))
-                    break
-                except Exception as e:
-                    if MaxRetries > 0:
-                        _Logger.Log(
-                            f"Exception During Generation '{e}', {MaxRetries} Retries Remaining",
-                            7,
-                        )
-                        MaxRetries -= 1
-                    else:
-                        _Logger.Log(
-                            f"Max Retries Exceeded During Generation, Aborting!", 7
-                        )
-                        raise Exception(
-                            "Generation Failed, Max Retires Exceeded, Aborting"
-                        )
-
-            # Replace "parts" back to "content" for generalization
-            # and replace "model" with "assistant"
-            for m in _Messages:
-                if "parts" in m:
-                    m["content"] = m["parts"]
-                    del m["parts"]
-                if "role" in m and m["role"] == "model":
-                    m["role"] = "assistant"
-
-        elif Provider == "openai":
-            raise NotImplementedError("OpenAI API not supported")
-
-        elif Provider == "openrouter":
-
-            # https://openrouter.ai/docs/parameters
-            # Be aware that parameters depend on models and providers.
-            ValidParameters = [
-                "max_token",
-                "presence_penalty",
-                "frequency_penalty",
-                "repetition_penalty",
-                "response_format",
-                "temperature",
-                "seed",
-                "top_k",
-                "top_p",
-                "top_a",
-                "min_p",
-            ]
-            ModelOptions = ModelOptions if ModelOptions is not None else {}
-
-            Client = self.Clients[_Model]
-            Client.set_params(**ModelOptions)
-            Client.model = ProviderModel
-            print(ProviderModel)
-
-            Response = Client.chat(messages=_Messages, seed=Seed)
-            _Messages.append({"role": "assistant", "content": Response})
-
-        elif Provider == "Anthropic":
-            raise NotImplementedError("Anthropic API not supported")
+        # Only Ollama supported for local generation
 
         else:
             raise Exception(f"Model Provider {Provider} for {_Model} not found")
@@ -421,10 +297,8 @@ class Interface:
         for chunk in _Stream:
             if _Provider == "ollama":
                 ChunkText = chunk["message"]["content"]
-            elif _Provider == "google":
-                ChunkText = chunk.text
             else:
-                raise ValueError(f"Unsupported provider: {_Provider}")
+                raise ValueError(f"Unsupported provider: {_Provider}. Only Ollama is supported.")
 
             Response += ChunkText
             print(ChunkText, end="", flush=True)

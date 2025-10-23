@@ -1,8 +1,6 @@
-# AI Story Generator 📚✨
+# StoryForge AI 📚✨
 
-Generate full-length novels with AI! Harness the power of large language models to create engaging stories based on your prompts.
-
-[![Discord](https://img.shields.io/discord/1255847829763784754?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://discord.gg/R2SySWDr2s)
+Generate full-length novels with AI! My custom story generation system that uses local language models to create engaging stories from your prompts.
 
 ## 🚀 Features
 

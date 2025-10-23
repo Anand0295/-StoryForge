@@ -409,7 +409,7 @@ StatsString += "\n\nUser Settings:  \n"
 StatsString += f" - Base Prompt: {BasePrompt}  \n"
 
 StatsString += "\n\nGeneration Settings:  \n"
-StatsString += f" - Generator: AIStoryGenerator_2024-06-27  \n"
+StatsString += f" - Generator: StoryForge_v1.0  \n"
 StatsString += (
     f" - Base Outline Writer Model: {Writer.Config.INITIAL_OUTLINE_WRITER_MODEL}  \n"
 )
