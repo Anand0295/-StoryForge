@@ -1,18 +1,6 @@
 # 🔥 StoryForge
 
-[![Hacktoberfest 2025](https://img.shields.io/badge/Hacktoberfest-2025-blueviolet)](https://hacktoberfest.com/)
-
 > **Transform your imagination into epic novels with AI-powered storytelling**
-
-## 🎃 Hacktoberfest 2025 Participant
-
-**This repository is participating in Hacktoberfest 2025!** We welcome quality contributions from developers of all skill levels.
-
-- ✅ All merged PRs will be labeled `hacktoberfest-accepted`
-- 🏆 Contributors can claim [Holopin badges](https://holopin.io/) for their contributions
-- 📋 Check our [Issues](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for beginner-friendly tasks
-
-**New to open source?** This is a great place to start! Read our [Contributing Guidelines](CONTRIBUTING.md) to get started.
 
 StoryForge is an advanced AI story generator that creates full-length, coherent novels from simple prompts. Whether you're a writer seeking inspiration, a game master crafting campaigns, or simply someone who loves great stories, StoryForge brings your ideas to life with remarkable depth and creativity.
 
