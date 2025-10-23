@@ -1,0 +1,36 @@
+name: PR Validator
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check PR Quality
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // Check for minimal changes
+            if (pr.additions < 5 && pr.deletions < 5) {
+              github.rest.issues.addLabels({
+                issue_number: pr.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['needs-review']
+              });
+            }
+            
+            // Check for meaningful title
+            if (pr.title.length < 10) {
+              github.rest.issues.createComment({
+                issue_number: pr.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: 'Please provide a more descriptive PR title.'
+              });
+            }

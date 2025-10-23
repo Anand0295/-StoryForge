@@ -1,4 +1,62 @@
 #!/bin/python3
+"""
+StoryForge - Interactive Testing and Model Selection Utility
+
+This is a comprehensive testing utility that provides an interactive command-line interface
+for testing different AI models and configurations with the StoryForge system. It serves as
+a developer tool and user-friendly way to experiment with various model combinations.
+
+Key Features:
+- Interactive model selection from predefined configurations
+- Support for local and remote model testing
+- Multiple prompt selection options including custom prompts
+- Configurable generation parameters and flags
+- Developer testing scripts for advanced model combinations
+- Quality vs. speed trade-off options
+- Integration with various AI providers (Ollama, Google, etc.)
+
+Model Categories:
+1. Local Models: Fast, private, offline generation
+   - llama3.2:latest (recommended for general use)
+   - llama3.1:latest (higher quality, slower)
+   - mistral variants (fast debugging, lower quality)
+
+2. Cloud Models: Higher quality, requires internet
+   - Gemini 1.5 Pro/Flash (Google's advanced models)
+   - Various quality and speed combinations
+
+3. Developer Configurations: Advanced multi-model setups
+   - Specialized model combinations for different tasks
+   - High-end models for maximum quality
+   - Experimental configurations for research
+
+Prompt Options:
+- Pre-built example prompts for testing
+- Custom prompt file support
+- Default examples covering various genres
+
+Configuration Options:
+- Outline expansion control
+- Chapter revision settings
+- Debug mode activation
+- Custom generation flags
+
+Usage Workflow:
+1. Select desired model configuration from menu
+2. Choose prompt source (examples or custom)
+3. Configure additional generation flags
+4. System automatically executes Write.py with selected parameters
+
+This utility is essential for:
+- Testing new model configurations
+- Comparing generation quality across models
+- Debugging generation issues
+- Experimenting with different parameter combinations
+- Developer testing and validation
+
+Note: Some configurations require access to remote model servers
+and may have different performance characteristics.
+"""
 
 import os
 
