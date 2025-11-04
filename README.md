@@ -5,224 +5,407 @@
 StoryForge is an advanced AI story generator that creates full-length, coherent novels from simple prompts. Whether you're a writer seeking inspiration, a game master crafting campaigns, or simply someone who loves great stories, StoryForge brings your ideas to life with remarkable depth and creativity.
 
 ## ✨ Features
+
 - 📚 **Full-Length Novels** - Generate complete stories with multiple chapters, character arcs, and satisfying conclusions
 - 🎭 **Multi-Genre Support** - Fantasy, sci-fi, mystery, romance, adventure, and hybrid genres
 - 🏠 **100% Local Processing** - Your stories remain private on your machine
 - 📄 **PDF Export** - Professional formatting for easy reading and sharing
-- 🌐 **Web Interface** - Clean, intuitive Gradio-based UI accessible via browser
+- 🌐 **Web Interface** - Clean, intuitive UI accessible via browser
 - ⚡ **Smart Generation** - Context-aware storytelling that maintains character consistency
 - 🔧 **Highly Customizable** - Extensive configuration options for advanced users
+- 🚀 **Lightweight & Fast** - Optimized for local execution with minimal dependencies
+
+## ⚡ Quick Start (Solo Dev/Local)
+
+```bash
+# Clone and setup
+git clone https://github.com/Anand0295/-StoryForge.git
+cd -StoryForge
+pip install -r requirements.txt
+
+# Run directly (CPU mode)
+python Write.py -Prompt "Your story idea"
+
+# Or with GPU acceleration (NVIDIA CUDA or Apple M1+)
+CUDA_VISIBLE_DEVICES=0 python Write.py -Prompt "Your story idea"
+```
 
 ## 📦 Installation
 
 ### Prerequisites
+
 - **Python**: 3.8+
 - **RAM**: 8GB minimum, 16GB recommended
 - **GPU** (Optional but recommended): NVIDIA RTX series or Apple Silicon
-- **Model**: `llama3.1:latest` (5GB download)
-- **Storage**: 10GB+ for multiple models
+- **Model**: `llama3.2:latest` or lightweight alternative (2-5GB)
+- **Storage**: 5GB+ for base model
 
 ### Performance Guide
-| Hardware     | Model        | Generation Time | Quality   |
-|-------------|-------------|----------------|-----------|
-| CPU Only    | llama3.2     | 5-10 min       | Good      |
-| RTX 3060+   | llama3.1     | 2-5 min        | Excellent |
-| Apple M1+   | llama3.1     | 3-7 min        | Excellent |
+
+| Hardware | Model | Generation Time | Quality |
+|----------|-------|-----------------|----------|
+| CPU Only | llama3.2 | 5-10 min | Good |
+| RTX 3060+ | llama3.2 | 1-3 min | Excellent |
+| Apple M1+ | llama3.2 | 2-4 min | Excellent |
+
+### Hardware Acceleration Setup
+
+#### NVIDIA GPU (CUDA)
+
+```bash
+# Verify CUDA availability
+nvcc --version
+
+# Enable GPU in your script
+CUDA_VISIBLE_DEVICES=0 python Write.py -Prompt "story"
+```
+
+#### Apple Silicon (Metal)
+
+```bash
+# Metal acceleration enabled by default on M1/M2/M3+
+python Write.py -Prompt "story"
+```
 
 ## 🎯 Usage
+
 ### Command Line Interface
+
 ```bash
 # Basic usage with default settings
 python Write.py -Prompt "Your story idea here"
+
 # Advanced usage with custom models
 python Write.py -Prompt prompts/fantasy.txt \
-  -InitialOutlineModel "ollama://llama3.1:latest" \
-  -ChapterModel "ollama://llama3.1:latest"
+  -InitialOutlineModel "ollama://llama3.2:latest" \
+  -ChapterModel "ollama://llama3.2:latest"
+
+# For production deployment with gunicorn
+gunicorn -w 2 -b 0.0.0.0:5000 app:app
 ```
 
-## 🖥️ Frontend Creation
-### Overview
-Create a simple web interface for StoryForge to make story generation more accessible and user-friendly.
+## 🖥️ Backend Optimization
+
+### Lightweight Dependencies
+
+StoryForge uses a minimal dependency footprint:
+- **Flask** (or FastAPI) - Web framework
+- **Ollama SDK** - Local LLM integration
+- **ReportLab** - PDF generation
+- No heavy ML frameworks required for inference
+
+### Production Server Setup
+
+#### Option 1: Gunicorn (Flask)
+
+```bash
+pip install gunicorn
+gunicorn -w 4 -b 0.0.0.0:5000 --timeout 300 app:app
+```
+
+#### Option 2: Uvicorn (FastAPI/Async)
+
+```bash
+pip install uvicorn
+uvicorn app:app --host 0.0.0.0 --port 5000 --workers 4
+```
+
+### AI Model Selection
+
+For local execution, use lightweight models:
+- **llama3.2** - 3.2B params, excellent balance
+- **mistral:7b** - 7B params, high quality
+- **neural-chat** - 7B params, fast response
+
+Avoid heavy models (13B+) for single-machine deployment.
+
+### Async/Threaded Server
+
+```python
+# Use async for non-blocking I/O
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+
+@app.post("/generate")
+async def generate_story(prompt: str):
+    # Non-blocking generation
+    return StreamingResponse(generate_chunks(prompt))
+```
+
+## 🌐 Frontend Creation
 
 ### Recommended Stack
-#### Option 1: React Frontend
-- **Framework**: React.js with Vite
-- **UI Library**: Material-UI or Tailwind CSS
-- **State Management**: React Context or Redux
-- **API Communication**: Axios or Fetch API
 
-#### Option 2: Flask Minimal Interface
-- **Framework**: Flask with Jinja2 templates
-- **Styling**: Bootstrap or plain CSS
-- **Backend Integration**: Direct Python integration
+#### React + Vite (Recommended)
 
-### Setup Steps
-#### React Frontend Setup
-Create new React project
+- **Framework**: React.js with Vite (sub-second HMR)
+- **UI Library**: Tailwind CSS (tree-shaking for minimal bundle)
+- **State Management**: React Context (no Redux bloat)
+- **API Communication**: Fetch API or Axios
+- **Build Output**: ~50KB gzipped (vs 200KB with CRA)
+
+### Frontend Optimization
+
+#### Vite Build Setup
+
 ```bash
 npm create vite@latest storyforge-frontend -- --template react
 cd storyforge-frontend
 npm install
 ```
-Install dependencies
-```bash
-npm install axios
+
+#### Vite Configuration (vite.config.js)
+
+```javascript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 500
+  }
+})
 ```
-#### Flask Setup
-Install Flask
+
+#### Lazy Loading Components
+
+```javascript
+import { lazy, Suspense } from 'react';
+
+const StoryEditor = lazy(() => import('./pages/StoryEditor'));
+const ChatHistory = lazy(() => import('./pages/ChatHistory'));
+
+function App() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <StoryEditor />
+      <ChatHistory />
+    </Suspense>
+  );
+}
+```
+
+#### Asset Compression
+
+```bash
+# Install compression tools
+npm install --save-dev vite-plugin-compression
+
+# Images: Use modern formats
+# Convert PNG/JPG to WebP
+# cwebp image.png -o image.webp
+```
+
+#### Performance Targets
+
+- **Bundle Size**: < 150KB gzipped
+- **First Contentful Paint**: < 2s
+- **Lazy-loaded chunks**: < 50KB each
+
+### Flask Minimal Interface (Optional)
+
 ```bash
 pip install flask flask-cors
-```
-Create app structure
-```bash
-mkdir storyforge_web
-cd storyforge_web
+mkdir storyforge_web && cd storyforge_web
 touch app.py
 mkdir templates static
 ```
 
-### Example Code Snippets
-#### React Component Example
-(See previous README section for an example React component.)
-
-#### Flask Backend Wrapper
-(See previous README section for a Flask backend snippet using Flask and Flask-CORS.)
-
 ## 🗄️ Database Integration
 
-StoryForge supports database integration for persistent, professional, and collaborative story management. Integrating a database allows for:
+StoryForge supports flexible database options for persistent story management.
 
-- Saving and retrieving collaborative fiction, story drafts, and chat history.
-- Supporting multi-user scenarios with robust access and version control.
-- Scaling beyond local sessions for sharing, analytics, and enhancements.
+### Default: SQLite (Local Dev)
 
-### Recommended Database Technologies
-| Database   | Best For    | Benefits                                                          |
-|------------|------------|-------------------------------------------------------------------|
-| PostgreSQL | Production, scaling, data integrity | ACID transactions, advanced queries, open source, highly scalable |
-| MongoDB    | Schema flexibility, rapid iteration | JSON-like docs, easy to scale horizontally, good for quick changes |
-| SQLite     | Local quick prototyping and development | Zero config, files only, perfect for single-user/testing          |
+**Recommended for solo dev and prototyping:**
 
-**Professional Recommendation:** For production and collaborative deployments, PostgreSQL is recommended for its reliability, scalability, active open source community, and broad ecosystem integration. MongoDB is also suitable for teams requiring flexible document structures. SQLite offers a fast local option for prototyping or single-user deployments.
-
-### Integration Overview
-1. **Database selection:** Add your chosen backend database engine (install `psycopg2` for PostgreSQL, `pymongo` for MongoDB, or use built-in `sqlite3`).
-2. **Environment config:** Store your database URI/credentials in a `.env` file or your hosting provider’s secret manager.
-3. **Backend update:**
-   - Use SQLAlchemy (recommended for Python) or direct driver for database operations.
-   - Add tables/collections for:
-     - Users & sessions
-     - Stories, chapters, revisions
-     - Chat logs/history
-   - Example: Automatically store new story generations and chat turns.
-4. **Migration:**
-   - For PostgreSQL: Run `alembic` migrations or `psql` scripts to create initial schema.
-   - For MongoDB: Use `mongo` shell or Mongoose/ODM for schema setup if needed.
-   - For SQLite: Python will create the DB file and tables on first run if using SQLAlchemy.
-5. **Frontend:**
-   - Add features for user login, accessing saved stories, loading project/chat history.
-#### Sample Table Structure (PostgreSQL/SQLAlchemy)
 ```python
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, create_engine
+import sqlite3
+from contextlib import contextmanager
+
+@contextmanager
+def get_db():
+    conn = sqlite3.connect('storyforge.db')
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+# Tables created automatically on first run
+def init_db():
+    with get_db() as conn:
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS stories (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            );
+        ''')
+        conn.commit()
+```
+
+### Scaling to PostgreSQL
+
+**When ready for production/multi-user:**
+
+```bash
+# Install PostgreSQL driver
+pip install psycopg2-binary sqlalchemy
+```
+
+```python
+from sqlalchemy import create_engine
+
+# Development (SQLite)
+engine = create_engine('sqlite:///storyforge.db')
+
+# Production (PostgreSQL)
+engine = create_engine(
+    'postgresql://user:password@localhost:5432/storyforge',
+    pool_size=20,
+    max_overflow=40
+)
+```
+
+### Recommended Databases
+
+| Database | Use Case | Benefits |
+|----------|----------|----------|
+| SQLite | Local dev, solo use | Zero config, file-based, fast for <1GB data |
+| PostgreSQL | Production, multi-user | ACID, advanced queries, horizontal scaling |
+| MongoDB | Rapid iteration, flexible schema | JSON docs, horizontal scaling |
+
+### Sample Table Structure (SQLAlchemy)
+
+```python
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
+
 Base = declarative_base()
+
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    stories = relationship('Story', back_populates='user')
+
 class Story(Base):
     __tablename__ = 'stories'
     id = Column(Integer, primary_key=True)
-    title = Column(String)
-    text = Column(Text)
-    user_id = Column(Integer, ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    title = Column(String, nullable=False)
+    content = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    user = relationship('User')
+    user = relationship('User', back_populates='stories')
 ```
 
-### Storing Story and Chat History
-- **Stories:** Each story, draft, or revision is saved in the database for easy retrieval and collaborative editing.
-- **Chat History:** User and AI interactions are logged (with timestamp, author, and content) to track development over time.
-- **Collaborators:** Use access control or locking (PostgreSQL-level or simple field flag) for live multi-user coordination.
+## 📦 Deployment
 
----
+### Single-Binary Packaging
+
+#### PyInstaller Build
+
+```bash
+pip install pyinstaller
+pyinstaller --onefile --collect-all ollama Write.py
+
+# Output: dist/Write (Linux/Mac) or dist/Write.exe (Windows)
+```
+
+#### Distribution
+
+```bash
+# Create portable package
+zip -r storyforge-bundle.zip dist/Write models/ templates/
+# Users extract and run: ./Write or ./Write.exe
+```
+
+### Docker Deployment (Optional)
+
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 5000
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]
+```
 
 ## 🔐 Authentication & Authorization
 
-StoryForge supports professional authentication integration for both Flask and React platforms, enabling secure and scalable user management. Authentication is essential for production apps to safeguard access to stories, chats, and user-specific features.
+For multi-user deployments, integrate secure authentication:
 
-### Proven Authentication Strategies
-- **Session-Based Authentication:** Recommended for traditional web apps (e.g., Flask backends) using secure server-side session cookies.
-- **Token-Based Authentication:** JWT (JSON Web Token)-based authentication for modern APIs and SPA frontends (e.g., React), offering stateless, scalable security.
-- **OAuth Integrations:** Enable "sign in with Google" or "sign in with GitHub" for convenient, secure third-party authentication, reducing credential management overhead.
+### Session-Based (Flask)
 
-### Recommended Libraries
-- **Flask:**
-  - [`Flask-Login`](https://flask-login.readthedocs.io/): Session management and user authentication.
-  - [`Flask-JWT-Extended`](https://flask-jwt-extended.readthedocs.io/): Token-based user authentication (JWT support).
-  - [`Authlib`](https://docs.authlib.org/): Secure OAuth client/provider implementation for Flask (supports Google, GitHub, etc.).
-- **React (Node.js/Express backend):**
-  - [`Passport.js`](http://www.passportjs.org/): Pluggable authentication for Node.js, supports local (custom), Google, GitHub, JWT, and more.
-  - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken): JWT support for signing/verifying tokens.
-
-### Summary of Library Features
-| Library             | Features                                                    |
-|---------------------|-------------------------------------------------------------|
-| Flask-Login         | Session-based auth, login required for routes, user loading |
-| Flask-JWT-Extended  | JWT token creation/validation, protected APIs, user claims  |
-| Authlib             | OAuth2 and social sign-in flows (Google, GitHub, etc.)      |
-| Passport.js         | Unifies local/JWT/OAuth, middleware for Express.js          |
-| jsonwebtoken        | Issue and verify JWT tokens for frontend-backend auth       |
-
-### Integration Outline
-1. **Backend**
-   - Store user credentials and OAuth IDs securely (hashed passwords, no plaintext passwords).
-   - Implement user registration (sign up), login, and password reset endpoints.
-   - For Flask: Use Flask-Login for session or Flask-JWT-Extended for token auth.
-   - For OAuth: Configure Authlib (Flask) or Passport.js (Node) with Google/GitHub client IDs/secrets. Redirect users to authorize, handle callback, store OAuth ID.
-   - Issue JWT or set secure session cookie after successful login.
-2. **Database**
-   - Users table/collection: unique username/email, hashed password/s, OAuth provider IDs.
-   - Sessions/JWTs can be optionally stored/tracked for logging/invalidation.
-3. **Frontend**
-   - Sign up/login React components. Post credentials to backend endpoints.
-   - Google/GitHub login: Redirect to OAuth, handle backend response, persist JWT/token in local storage (or use HTTP-only cookie).
-   - Protect routes (e.g., Story, Chat) by requiring token/session on the frontend (React routeguards, Flask decorators like `@login_required`).
-
-### Example Protected Route (Flask)
 ```python
-from flask_login import login_required
+from flask_login import LoginManager, login_required
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+
 @app.route('/stories')
 @login_required
 def user_stories():
-    ...
+    return jsonify(current_user.stories)
 ```
 
-### Example JWT Auth Middleware (React/Express)
-```js
-// Express protected route example
-const jwt = require('jsonwebtoken');
-function authenticateJWT(req, res, next) {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({error: 'No token'});
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({error: 'Invalid token'});
-    req.user = user;
-    next();
-  });
-}
-app.get('/api/stories', authenticateJWT, (req, res) => {
-  // User is authenticated and req.user is set
-});
+### Token-Based (JWT)
+
+```python
+from flask_jwt_extended import JWTManager, create_access_token
+
+jwt = JWTManager(app)
+
+@app.route('/login', methods=['POST'])
+def login():
+    access_token = create_access_token(identity=user.id)
+    return jsonify(access_token=access_token)
 ```
+
+## 📝 Integration Notes
+
+- Backend CLI (`Write.py`) runs independently or via Flask/FastAPI wrapper
+- Configure CORS if running separate frontend/backend
+- Implement authentication for multi-user scenarios
+- Use SQLite for local dev, PostgreSQL for production
+- Enable hardware acceleration (CUDA/Metal) for 3-5x speedup
+- Lazy-load frontend components for sub-2s initial load
+- Deploy with gunicorn/uvicorn, not Flask development server
+
+## 📄 License
+
+MIT License - See LICENSE file for details
+
+## 🤝 Contributing
+
+Contributions welcome! Please submit issues and pull requests.
 
 ---
 
-## Integration Notes
-- Ensure the backend CLI (`Write.py`) is accessible from your frontend server
-- Configure CORS properly if running React and Flask separately
-- Implement authentication and protect all sensitive/story/chat endpoints
-- Add frontend loading/error states for authentication
-- Add file upload support for prompt files
+**Optimized for lightweight, fast native execution - Perfect for solo developers and local deployments.**
