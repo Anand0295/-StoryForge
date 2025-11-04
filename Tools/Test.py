@@ -1,7 +1,6 @@
 #!/bin/python3
 """
 StoryForge - Interactive Testing and Model Selection Utility
-
 This is a comprehensive testing utility that provides an interactive command-line interface
 for testing different AI models and configurations with the StoryForge system. It serves as
 a developer tool and user-friendly way to experiment with various model combinations.
@@ -20,11 +19,9 @@ Model Categories:
    - llama3.2:latest (recommended for general use)
    - llama3.1:latest (higher quality, slower)
    - mistral variants (fast debugging, lower quality)
-
 2. Cloud Models: Higher quality, requires internet
    - Gemini 1.5 Pro/Flash (Google's advanced models)
    - Various quality and speed combinations
-
 3. Developer Configurations: Advanced multi-model setups
    - Specialized model combinations for different tasks
    - High-end models for maximum quality
@@ -59,439 +56,332 @@ and may have different performance characteristics.
 """
 
 import os
+import subprocess
+import shlex
+from pathlib import Path
+from typing import Optional, List, Dict
+import logging
 
-print("StoryForge Testing Utility - Local Model Selection")
+# Configure logging for better error tracking
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Get Choice For Model
-print("Chose Model: ")
-print("-------------------------------------------")
-print("1 -> Local llama3.2:latest (recommended)")
-print("2 -> Local llama3.1:latest (higher quality)")
-print("3 -> Gemini 1.5 pro, Gemini 1.5 flash for editing")
-print("4 -> Gemini 1.5 pro, Gemini 1.5 pro for editing")
-print("5 -> ollama://mistral:7b, ollama://mistral:7b for editing (fast debug test, produces crap output)")
-print("6 -> Developer testing script 1, uses many local models, very slow, but decent output")
-print("7 -> Developer testing script 2, miqulitz-120b, one model, llama3:70b editor")
-print("8 -> Developer testing script 3, miqu-70b-v1.5, one model, llama3:70b editor")
-print("9 -> Developer testing script 4, gemma2:27b, one model, gemma2:27b editor")
-print("10 -> Developer testing script 4, qwen2:72b, one model, qwen2:72b editor")
-print("11 -> Developer testing script 5, llama3, one model, llama3 editor")
-print("12 -> Developer testing script 6, gemma, one model, gemma editor")
-print("13 -> Developer testing script 7, rose-70b-v2, one model, llama3:70b editor")
-print("14 -> Developer testing script 8, miqu-103b-v1, one model, llama3:70b editor")
-print("15 -> Developer testing script 9, miqu-70b-v1.5, one model, command-r-plus editor")
-print("16 -> Developer testing script 10, mistral-nemo, one model, mistral-nemo editor")
-print("17 -> Developer testing script 11, mistral-large, one model, mistral-large editor")
-print("18 -> Developer testing script 10, mistral-large, one model, llama3.1:70b editor")
-print("-------------------------------------------")
+# Security constants
+ALLOWED_MODELS = {
+    'llama3.2:latest',
+    'llama3.1:latest',
+    'mistral:7b',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash'
+}
 
-
-# Get Choice
-print("")
-choice = input("> ")
-
-# Get Choice For Prompt
-print("Chose Prompt:")
-print("-------------------------------------------")
-print("1 -> ExamplePrompts/Example1/Prompt.txt")
-print("2 -> ExamplePrompts/Example2/Prompt.txt")
-print("3 -> Custom Prompt")
-print("-------------------------------------------")
-print("Default = 1")
-print("")
-PromptChoice = input("> ")
-
-Prompt = ""
-if (PromptChoice == "" or PromptChoice == "1"):
-    Prompt = "ExamplePrompts/Example1/Prompt.txt"
-elif (PromptChoice == "2"):
-    Prompt = "ExamplePrompts/Example2/Prompt.txt"
-elif (PromptChoice == "3"):
-    Prompt = input("Enter Prompt File Path: ")
+MAX_PROMPT_LENGTH = 5000
+WHITELIST_PROMPT_CHARS = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:\'"()-')
 
 
-
-# Now, Add Any Extra Flags
-print("Extra Flags:")
-# print("-------------------------------------------")
-# print("1 -> ExamplePrompts/Example1/Prompt.txt")
-# print("2 -> ExamplePrompts/Example2/Prompt.txt")
-# print("3 -> Custom Prompt")
-# print("-------------------------------------------")
-print("Default = '-ExpandOutline'")
-print("")
-ExtraFlags = input("> ")
-
-if ExtraFlags == "":
-    ExtraFlags = "-ExpandOutline"
-
-
-
-# Terrible but effective way to manage the choices
-if (choice == "1"):
-    os.system(f'''
-cd .. && python Write.py \
--Seed 999 \
--Prompt {Prompt} \
--NoChapterRevision {ExtraFlags}
-              ''')
-
-elif (choice == "2"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel google://gemini-1.5-flash \
--ChapterOutlineModel google://gemini-1.5-flash \
--ChapterS1Model google://gemini-1.5-flash \
--ChapterS2Model google://gemini-1.5-flash \
--ChapterS3Model google://gemini-1.5-flash \
--ChapterS4Model google://gemini-1.5-flash \
--ChapterRevisionModel google://gemini-1.5-flash \
--RevisionModel google://gemini-1.5-flash \
--EvalModel google://gemini-1.5-flash \
--InfoModel google://gemini-1.5-flash \
--NoScrubChapters \
--Debug {ExtraFlags}
-              ''')
-
-elif (choice == "3"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel google://gemini-1.5-pro \
--ChapterOutlineModel google://gemini-1.5-pro \
--ChapterS1Model google://gemini-1.5-pro \
--ChapterS2Model google://gemini-1.5-pro \
--ChapterS3Model google://gemini-1.5-pro \
--ChapterS4Model google://gemini-1.5-pro \
--ChapterRevisionModel google://gemini-1.5-flash \
--RevisionModel google://gemini-1.5-flash \
--EvalModel google://gemini-1.5-flash \
--InfoModel google://gemini-1.5-flash \
--NoScrubChapters \
--Debug {ExtraFlags}
-              ''')
+def sanitize_input(user_input: str, max_length: int = 1000, whitelist: Optional[set] = None) -> str:
+    """
+    Sanitize user input to prevent injection attacks.
     
-elif (choice == "4"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel google://gemini-1.5-pro \
--ChapterOutlineModel google://gemini-1.5-pro \
--ChapterS1Model google://gemini-1.5-pro \
--ChapterS2Model google://gemini-1.5-pro \
--ChapterS3Model google://gemini-1.5-pro \
--ChapterS4Model google://gemini-1.5-pro \
--ChapterRevisionModel google://gemini-1.5-pro \
--RevisionModel google://gemini-1.5-pro \
--EvalModel google://gemini-1.5-pro \
--InfoModel google://gemini-1.5-pro \
--NoScrubChapters \
--Debug {ExtraFlags}
-              ''')
+    Args:
+        user_input: Raw input from user
+        max_length: Maximum allowed length
+        whitelist: Set of allowed characters (if None, only basic alphanumeric allowed)
     
-elif (choice == "5"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://mistral \
--ChapterOutlineModel ollama://mistral \
--ChapterS1Model ollama://mistral \
--ChapterS2Model ollama://mistral \
--ChapterS3Model ollama://mistral \
--ChapterS4Model ollama://mistral \
--ChapterRevisionModel ollama://mistral \
--RevisionModel ollama://mistral \
--EvalModel ollama://mistral \
--InfoModel ollama://mistral \
--CheckerModel ollama://mistral \
--NoScrubChapters {ExtraFlags}
-              ''')
+    Returns:
+        Sanitized input string
     
-elif (choice == "6"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt Prompts/Genshin/Kaeluc.txt \
--InitialOutlineModel ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/midnight-rose103b-v2:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://command-r-plus@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug \
--NoChapterRevision {ExtraFlags}
-''')
+    Raises:
+        ValueError: If input exceeds max length or contains invalid characters
+    """
+    if not isinstance(user_input, str):
+        raise ValueError("Input must be a string")
     
-elif (choice == "7"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/miqulitz120b-v2:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-
-''')
+    if len(user_input) > max_length:
+        raise ValueError(f"Input exceeds maximum length of {max_length} characters")
     
-elif (choice == "8"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--ScrubModel ollama://llama3:70b@10.1.65.4:11434 \
--CheckerModel ollama://llama3:70b@10.1.65.4:11434 \
--TranslatorModel  ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
-
+    if whitelist is None:
+        whitelist = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-')
     
-elif (choice == "9"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterOutlineModel ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterS1Model ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterS2Model ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterS3Model ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterS4Model ollama://gemma2:27b@10.1.65.4:11434 \
--ChapterRevisionModel ollama://gemma2:27b@10.1.65.4:11434 \
--RevisionModel ollama://gemma2:27b@10.1.65.4:11434 \
--EvalModel ollama://gemma2:27b@10.1.65.4:11434 \
--InfoModel ollama://gemma2:27b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
+    sanitized = ''.join(c for c in user_input if c in whitelist)
+    return sanitized
 
-''')
+
+def validate_model_name(model: str) -> bool:
+    """
+    Validate that the model name is in the allowed list.
     
-elif (choice == "10"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt ExamplePrompts/Example1/Prompt.txt \
--InitialOutlineModel ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterOutlineModel ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterS1Model ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterS2Model ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterS3Model ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterS4Model ollama://qwen2:72b@10.1.65.4:11434 \
--ChapterRevisionModel ollama://qwen2:72b@10.1.65.4:11434 \
--RevisionModel ollama://qwen2:72b@10.1.65.4:11434 \
--EvalModel ollama://qwen2:72b@10.1.65.4:11434 \
--InfoModel ollama://qwen2:72b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
+    Args:
+        model: Model name to validate
     
-elif (choice == "11"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt ExamplePrompts/Example1/Prompt.txt \
--InitialOutlineModel ollama://llama3@10.1.65.4:11434 \
--ChapterOutlineModel ollama://llama3@10.1.65.4:11434 \
--ChapterS1Model ollama://llama3@10.1.65.4:11434 \
--ChapterS2Model ollama://llama3@10.1.65.4:11434 \
--ChapterS3Model ollama://llama3@10.1.65.4:11434 \
--ChapterS4Model ollama://llama3@10.1.65.4:11434 \
--ChapterRevisionModel ollama://llama3@10.1.65.4:11434 \
--RevisionModel ollama://llama3@10.1.65.4:11434 \
--EvalModel ollama://llama3@10.1.65.4:11434 \
--InfoModel ollama://llama3@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
+    Returns:
+        True if model is allowed, False otherwise
+    """
+    return model in ALLOWED_MODELS
 
-''')
+
+def validate_file_path(file_path: str, base_dir: str = '.') -> Optional[Path]:
+    """
+    Validate and resolve file path safely to prevent path traversal attacks (CWE-22).
     
-elif (choice == "12"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt ExamplePrompts/Example1/Prompt.txt \
--InitialOutlineModel ollama://gemma@10.1.65.4:11434 \
--ChapterOutlineModel ollama://gemma@10.1.65.4:11434 \
--ChapterS1Model ollama://gemma@10.1.65.4:11434 \
--ChapterS2Model ollama://gemma@10.1.65.4:11434 \
--ChapterS3Model ollama://gemma@10.1.65.4:11434 \
--ChapterS4Model ollama://gemma@10.1.65.4:11434 \
--ChapterRevisionModel ollama://gemma@10.1.65.4:11434 \
--RevisionModel ollama://gemma@10.1.65.4:11434 \
--EvalModel ollama://gemma@10.1.65.4:11434 \
--InfoModel ollama://gemma@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
+    Args:
+        file_path: Path to validate
+        base_dir: Base directory for file access
     
-elif (choice == "13"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/midnight-rose70b-v2:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--ScrubModel ollama://llama3:70b@10.1.65.4:11434 \
--CheckerModel ollama://llama3:70b@10.1.65.4:11434 \
--TranslatorModel  ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
+    Returns:
+        Resolved Path object if valid, None otherwise
     
-elif (choice == "14"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/midnight-miqu103b-v1:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3:70b@10.1.65.4:11434 \
--ScrubModel ollama://llama3:70b@10.1.65.4:11434 \
--CheckerModel ollama://llama3:70b@10.1.65.4:11434 \
--TranslatorModel  ollama://llama3:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
+    Raises:
+        ValueError: If path traversal attempt detected
+    """
+    try:
+        base_path = Path(base_dir).resolve()
+        target_path = (base_path / file_path).resolve()
+        
+        # Ensure target is within base directory
+        if not str(target_path).startswith(str(base_path)):
+            logger.error(f"Path traversal attempt detected: {file_path}")
+            raise ValueError(f"Path traversal attempt detected")
+        
+        if not target_path.exists():
+            logger.error(f"File does not exist: {target_path}")
+            return None
+        
+        return target_path
+    except Exception as e:
+        logger.error(f"Path validation error: {e}")
+        return None
 
-''')
+
+def execute_command_safely(command: List[str], timeout: int = 300) -> int:
+    """
+    Execute a command safely using subprocess without shell injection (CWE-77/78/88).
     
-elif (choice == "15"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://datacrystals/midnight-miqu70b-v1.5:latest@10.1.65.4:11434 \
--RevisionModel ollama://command-r-plus@10.1.65.4:11434 \
--EvalModel ollama://command-r-plus@10.1.65.4:11434 \
--InfoModel ollama://command-r-plus@10.1.65.4:11434 \
--ScrubModel ollama://command-r-plus@10.1.65.4:11434 \
--CheckerModel ollama://command-r-plus@10.1.65.4:11434 \
--TranslatorModel  ollama://command-r-plus@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
-
-elif (choice == "16"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://mistral-nemo:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://mistral-nemo:latest@10.1.65.4:11434 \
--RevisionModel ollama://mistral-nemo@10.1.65.4:11434 \
--EvalModel ollama://mistral-nemo@10.1.65.4:11434 \
--InfoModel ollama://mistral-nemo@10.1.65.4:11434 \
--ScrubModel ollama://mistral-nemo@10.1.65.4:11434 \
--CheckerModel ollama://mistral-nemo@10.1.65.4:11434 \
--TranslatorModel  ollama://mistral-nemo@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
-
-elif (choice == "17"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://mistral-large:latest@10.1.65.4:11434 \
--RevisionModel ollama://mistral-large@10.1.65.4:11434 \
--EvalModel ollama://mistral-large@10.1.65.4:11434 \
--InfoModel ollama://mistral-large@10.1.65.4:11434 \
--ScrubModel ollama://mistral-large@10.1.65.4:11434 \
--CheckerModel ollama://mistral-large@10.1.65.4:11434 \
--TranslatorModel  ollama://mistral-large@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
-
-''')
+    Args:
+        command: List of command arguments (NOT a string)
+        timeout: Command timeout in seconds
+    
+    Returns:
+        Return code of the executed command
+    
+    Raises:
+        subprocess.TimeoutExpired: If command exceeds timeout
+        subprocess.CalledProcessError: If command fails
+    """
+    try:
+        logger.info(f"Executing command: {' '.join(command)}")
+        result = subprocess.run(
+            command,
+            timeout=timeout,
+            check=False,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            logger.warning(f"Command failed with return code {result.returncode}")
+            if result.stderr:
+                logger.error(f"Error output: {result.stderr}")
+        else:
+            logger.info("Command executed successfully")
+        
+        return result.returncode
+    except subprocess.TimeoutExpired:
+        logger.error(f"Command timed out after {timeout} seconds")
+        raise
+    except Exception as e:
+        logger.error(f"Error executing command: {e}")
+        raise
 
 
-elif (choice == "18"):
-    os.system(f'''
-cd .. && ./Write.py \
--Seed 999 \
--Prompt {Prompt} \
--InitialOutlineModel ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterOutlineModel ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS1Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS2Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS3Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterS4Model ollama://mistral-large:latest@10.1.65.4:11434 \
--ChapterRevisionModel ollama://mistral-large:latest@10.1.65.4:11434 \
--RevisionModel ollama://llama3.1:70b@10.1.65.4:11434 \
--EvalModel ollama://llama3.1:70b@10.1.65.4:11434 \
--InfoModel ollama://llama3.1:70b@10.1.65.4:11434 \
--ScrubModel ollama://llama3.1:70b@10.1.65.4:11434 \
--CheckerModel ollama://llama3.1:70b@10.1.65.4:11434 \
--TranslatorModel  ollama://llama3.1:70b@10.1.65.4:11434 \
--NoScrubChapters \
--Debug {ExtraFlags}
+def run_story_generation(
+    prompt: str,
+    model: str,
+    outline_model: Optional[str] = None,
+    chapter_model: Optional[str] = None,
+    flags: Optional[str] = None
+) -> int:
+    """
+    Safely execute story generation with validated parameters (CWE-94, CWE-77).
+    
+    Args:
+        prompt: Story prompt (will be validated)
+        model: AI model to use (must be in ALLOWED_MODELS)
+        outline_model: Optional outline generation model
+        chapter_model: Optional chapter generation model
+        flags: Optional generation flags
+    
+    Returns:
+        Command return code
+    
+    Raises:
+        ValueError: If validation fails
+    """
+    try:
+        # Validate inputs
+        if not validate_model_name(model):
+            raise ValueError(f"Invalid model: {model}. Allowed models: {ALLOWED_MODELS}")
+        
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            raise ValueError(f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH} characters")
+        
+        if len(prompt.strip()) == 0:
+            raise ValueError("Prompt cannot be empty")
+        
+        # Build command as list (prevents shell injection)
+        command = [
+            'python',
+            'Write.py',
+            '-Prompt',
+            prompt
+        ]
+        
+        # Add optional parameters safely
+        if outline_model and validate_model_name(outline_model):
+            command.extend(['-InitialOutlineModel', outline_model])
+        
+        if chapter_model and validate_model_name(chapter_model):
+            command.extend(['-ChapterModel', chapter_model])
+        
+        if flags:
+            # Sanitize flags - only allow specific safe flags
+            safe_flags = ['-debug', '-expand_outline', '-no_revision']
+            for flag in flags.split():
+                if flag in safe_flags:
+                    command.append(flag)
+                else:
+                    logger.warning(f"Ignoring unsafe flag: {flag}")
+        
+        # Execute safely
+        return execute_command_safely(command)
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in story generation: {e}")
+        raise
 
-''')
+
+def load_prompt_from_file(file_path: str) -> Optional[str]:
+    """
+    Safely load a prompt from a file with path traversal protection (CWE-22).
+    
+    Args:
+        file_path: Path to prompt file
+    
+    Returns:
+        Prompt text if successful, None otherwise
+    """
+    try:
+        # Validate file path
+        validated_path = validate_file_path(file_path, base_dir='prompts')
+        if not validated_path:
+            logger.error(f"Invalid prompt file path: {file_path}")
+            return None
+        
+        with open(validated_path, 'r', encoding='utf-8') as f:
+            content = f.read(MAX_PROMPT_LENGTH + 1)  # Read slightly more to detect overflow
+            
+            if len(content) > MAX_PROMPT_LENGTH:
+                logger.error(f"Prompt file too large: {file_path}")
+                return None
+            
+            return content.strip()
+    except Exception as e:
+        logger.error(f"Error loading prompt file: {e}")
+        return None
+
+
+def interactive_test_menu() -> None:
+    """
+    Interactive testing menu with safe input handling (CWE-94, CWE-77/78/88).
+    """
+    try:
+        print("\n" + "="*60)
+        print("StoryForge Interactive Testing Utility")
+        print("="*60)
+        
+        # Model selection
+        print("\nAvailable Models:")
+        for i, model in enumerate(ALLOWED_MODELS, 1):
+            print(f"{i}. {model}")
+        
+        model_choice = input("\nSelect model (1-{}): ".format(len(ALLOWED_MODELS)))
+        
+        try:
+            model_idx = int(model_choice) - 1
+            if not 0 <= model_idx < len(ALLOWED_MODELS):
+                raise ValueError("Invalid selection")
+            selected_model = list(ALLOWED_MODELS)[model_idx]
+        except (ValueError, IndexError):
+            logger.error("Invalid model selection")
+            return
+        
+        # Prompt selection
+        print("\nPrompt Options:")
+        print("1. Use example prompt")
+        print("2. Load from file")
+        print("3. Enter custom prompt")
+        
+        prompt_choice = input("\nSelect prompt option (1-3): ")
+        prompt = None
+        
+        if prompt_choice == '1':
+            prompt = "Write a fantasy story about a young hero discovering hidden powers."
+        elif prompt_choice == '2':
+            file_path = input("Enter prompt file path: ")
+            prompt = load_prompt_from_file(file_path)
+            if not prompt:
+                logger.error("Failed to load prompt from file")
+                return
+        elif prompt_choice == '3':
+            prompt = input(f"Enter custom prompt (max {MAX_PROMPT_LENGTH} chars): ")
+        else:
+            logger.error("Invalid prompt option")
+            return
+        
+        if not prompt:
+            logger.error("No prompt provided")
+            return
+        
+        # Flags configuration
+        print("\nOptional Flags:")
+        print("-debug: Enable debug mode")
+        print("-expand_outline: Expand story outline")
+        print("-no_revision: Skip chapter revisions")
+        
+        flags = input("\nEnter flags (space-separated, or press Enter for none): ")
+        
+        # Execute story generation
+        logger.info("Starting story generation...")
+        try:
+            return_code = run_story_generation(
+                prompt=prompt,
+                model=selected_model,
+                flags=flags if flags else None
+            )
+            
+            if return_code == 0:
+                print("\n✓ Story generation completed successfully!")
+            else:
+                print(f"\n✗ Story generation failed with return code {return_code}")
+        except Exception as e:
+            logger.error(f"Story generation error: {e}")
+            print(f"\n✗ Error: {e}")
+    
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user")
+    except Exception as e:
+        logger.error(f"Unexpected error in menu: {e}")
+        print(f"\n✗ Unexpected error: {e}")
+
+
+if __name__ == "__main__":
+    try:
+        interactive_test_menu()
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        exit(1)
