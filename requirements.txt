@@ -1,3 +1,23 @@
-gradio>=4.0.0
-reportlab>=4.0.0
+# Core Dependencies (Minimal)
 requests>=2.25.0
+reportlab>=4.0.0
+
+# Optional UI (Gradio removed for lightweight CLI-first approach)
+# gradio>=4.0.0  # Uncomment if web interface needed
+
+# Backend Server (choose one)
+gunicorn>=21.0.0  # WSGI server for Flask
+# uvicorn>=0.24.0  # ASGI server for FastAPI (async)
+
+# Optional Dependencies
+# flask>=2.0.0  # Web framework (if using web interface)
+# flask-cors>=3.0.0  # CORS support
+# pydantic>=1.10.0  # Data validation
+# python-dotenv>=0.19.0  # Environment config
+# sqlalchemy>=2.0.0  # Database ORM
+# psycopg2-binary>=2.9.0  # PostgreSQL driver (for scaling)
+
+# Development Only (not needed for production)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0
