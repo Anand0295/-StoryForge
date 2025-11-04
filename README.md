@@ -23,14 +23,13 @@ StoryForge is an advanced AI story generator that creates full-length, coherent 
 - **Storage**: 10GB+ for multiple models
 
 ### Performance Guide
-| Hardware     | Model         | Generation Time | Quality   |
-|-------------|--------------|----------------|-----------|
+| Hardware     | Model        | Generation Time | Quality   |
+|-------------|-------------|----------------|-----------|
 | CPU Only    | llama3.2     | 5-10 min       | Good      |
 | RTX 3060+   | llama3.1     | 2-5 min        | Excellent |
 | Apple M1+   | llama3.1     | 3-7 min        | Excellent |
 
 ## 🎯 Usage
-
 ### Command Line Interface
 ```bash
 # Basic usage with default settings
@@ -42,7 +41,6 @@ python Write.py -Prompt prompts/fantasy.txt \
 ```
 
 ## 🖥️ Frontend Creation
-
 ### Overview
 Create a simple web interface for StoryForge to make story generation more accessible and user-friendly.
 
@@ -85,79 +83,25 @@ mkdir templates static
 
 ### Example Code Snippets
 #### React Component Example
-```javascript
-import React, { useState } from 'react';
-import axios from 'axios';
-function StoryGenerator() {
-  const [prompt, setPrompt] = useState('');
-  const [story, setStory] = useState('');
-  const [loading, setLoading] = useState(false);
-  const generateStory = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post('http://localhost:5000/generate', { prompt: prompt, model: 'ollama://llama3.1:latest', });
-      setStory(response.data.story);
-    } catch (error) {
-      console.error('Error generating story:', error);
-    }
-    setLoading(false);
-  };
-  return (
-    <div className="story-generator">
-      <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Enter your story idea..." />
-      <button onClick={generateStory} disabled={loading}>{loading ? 'Generating...' : 'Generate Story'}</button>
-      {story && (<div className="story-output">{story}</div>)}
-    </div>
-  );
-}
-export default StoryGenerator;
-```
+(See previous README section for an example React component.)
+
 #### Flask Backend Wrapper
-```python
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-import subprocess
-import json
-app = Flask(__name__)
-CORS(app)
-@app.route('/')
-def index():
-    return render_template('index.html')
-@app.route('/generate', methods=['POST'])
-def generate_story():
-    data = request.json
-    prompt = data.get('prompt', '')
-    model = data.get('model', 'ollama://llama3.1:latest')
-    cmd = ['python', 'Write.py', '-Prompt', prompt, '-InitialOutlineModel', model]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        return jsonify({'success': True, 'story': result.stdout})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-```
-#### Simple HTML Template (Flask)
-...(existing content continues)...
-
-### Minimal React Frontend (Ready-to-Copy)
-...(see previous sections)...
-
----
+(See previous README section for a Flask backend snippet using Flask and Flask-CORS.)
 
 ## 🗄️ Database Integration
 
 StoryForge supports database integration for persistent, professional, and collaborative story management. Integrating a database allows for:
+
 - Saving and retrieving collaborative fiction, story drafts, and chat history.
 - Supporting multi-user scenarios with robust access and version control.
 - Scaling beyond local sessions for sharing, analytics, and enhancements.
 
 ### Recommended Database Technologies
-| Database      | Best For                                 | Benefits                                                         |
-|---------------|------------------------------------------|------------------------------------------------------------------|
-| PostgreSQL    | Production, scaling, data integrity      | ACID transactions, advanced queries, open source, highly scalable |
-| MongoDB       | Schema flexibility, rapid iteration      | JSON-like docs, easy to scale horizontally, good for quick changes|
-| SQLite        | Local quick prototyping and development  | Zero config, files only, perfect for single-user/testing          |
+| Database   | Best For    | Benefits                                                          |
+|------------|------------|-------------------------------------------------------------------|
+| PostgreSQL | Production, scaling, data integrity | ACID transactions, advanced queries, open source, highly scalable |
+| MongoDB    | Schema flexibility, rapid iteration | JSON-like docs, easy to scale horizontally, good for quick changes |
+| SQLite     | Local quick prototyping and development | Zero config, files only, perfect for single-user/testing          |
 
 **Professional Recommendation:** For production and collaborative deployments, PostgreSQL is recommended for its reliability, scalability, active open source community, and broad ecosystem integration. MongoDB is also suitable for teams requiring flexible document structures. SQLite offers a fast local option for prototyping or single-user deployments.
 
@@ -177,7 +121,6 @@ StoryForge supports database integration for persistent, professional, and colla
    - For SQLite: Python will create the DB file and tables on first run if using SQLAlchemy.
 5. **Frontend:**
    - Add features for user login, accessing saved stories, loading project/chat history.
-
 #### Sample Table Structure (PostgreSQL/SQLAlchemy)
 ```python
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, create_engine
@@ -206,9 +149,80 @@ class Story(Base):
 
 ---
 
-### Integration Notes
+## 🔐 Authentication & Authorization
+
+StoryForge supports professional authentication integration for both Flask and React platforms, enabling secure and scalable user management. Authentication is essential for production apps to safeguard access to stories, chats, and user-specific features.
+
+### Proven Authentication Strategies
+- **Session-Based Authentication:** Recommended for traditional web apps (e.g., Flask backends) using secure server-side session cookies.
+- **Token-Based Authentication:** JWT (JSON Web Token)-based authentication for modern APIs and SPA frontends (e.g., React), offering stateless, scalable security.
+- **OAuth Integrations:** Enable "sign in with Google" or "sign in with GitHub" for convenient, secure third-party authentication, reducing credential management overhead.
+
+### Recommended Libraries
+- **Flask:**
+  - [`Flask-Login`](https://flask-login.readthedocs.io/): Session management and user authentication.
+  - [`Flask-JWT-Extended`](https://flask-jwt-extended.readthedocs.io/): Token-based user authentication (JWT support).
+  - [`Authlib`](https://docs.authlib.org/): Secure OAuth client/provider implementation for Flask (supports Google, GitHub, etc.).
+- **React (Node.js/Express backend):**
+  - [`Passport.js`](http://www.passportjs.org/): Pluggable authentication for Node.js, supports local (custom), Google, GitHub, JWT, and more.
+  - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken): JWT support for signing/verifying tokens.
+
+### Summary of Library Features
+| Library             | Features                                                    |
+|---------------------|-------------------------------------------------------------|
+| Flask-Login         | Session-based auth, login required for routes, user loading |
+| Flask-JWT-Extended  | JWT token creation/validation, protected APIs, user claims  |
+| Authlib             | OAuth2 and social sign-in flows (Google, GitHub, etc.)      |
+| Passport.js         | Unifies local/JWT/OAuth, middleware for Express.js          |
+| jsonwebtoken        | Issue and verify JWT tokens for frontend-backend auth       |
+
+### Integration Outline
+1. **Backend**
+   - Store user credentials and OAuth IDs securely (hashed passwords, no plaintext passwords).
+   - Implement user registration (sign up), login, and password reset endpoints.
+   - For Flask: Use Flask-Login for session or Flask-JWT-Extended for token auth.
+   - For OAuth: Configure Authlib (Flask) or Passport.js (Node) with Google/GitHub client IDs/secrets. Redirect users to authorize, handle callback, store OAuth ID.
+   - Issue JWT or set secure session cookie after successful login.
+2. **Database**
+   - Users table/collection: unique username/email, hashed password/s, OAuth provider IDs.
+   - Sessions/JWTs can be optionally stored/tracked for logging/invalidation.
+3. **Frontend**
+   - Sign up/login React components. Post credentials to backend endpoints.
+   - Google/GitHub login: Redirect to OAuth, handle backend response, persist JWT/token in local storage (or use HTTP-only cookie).
+   - Protect routes (e.g., Story, Chat) by requiring token/session on the frontend (React routeguards, Flask decorators like `@login_required`).
+
+### Example Protected Route (Flask)
+```python
+from flask_login import login_required
+@app.route('/stories')
+@login_required
+def user_stories():
+    ...
+```
+
+### Example JWT Auth Middleware (React/Express)
+```js
+// Express protected route example
+const jwt = require('jsonwebtoken');
+function authenticateJWT(req, res, next) {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({error: 'No token'});
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({error: 'Invalid token'});
+    req.user = user;
+    next();
+  });
+}
+app.get('/api/stories', authenticateJWT, (req, res) => {
+  // User is authenticated and req.user is set
+});
+```
+
+---
+
+## Integration Notes
 - Ensure the backend CLI (`Write.py`) is accessible from your frontend server
 - Configure CORS properly if running React and Flask separately
-- Consider adding authentication for production deployments
-- Implement proper error handling and loading states
+- Implement authentication and protect all sensitive/story/chat endpoints
+- Add frontend loading/error states for authentication
 - Add file upload support for prompt files
