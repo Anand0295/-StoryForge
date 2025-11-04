@@ -1,175 +1,69 @@
 #!/bin/python3
 """
 StoryForge - Interactive Testing and Model Selection Utility
-This is a comprehensive testing utility that provides an interactive command-line interface
-for testing different AI models and configurations with the StoryForge system. It serves as
-a developer tool and user-friendly way to experiment with various model combinations.
-
-Key Features:
-- Interactive model selection from predefined configurations
-- Support for local and remote model testing
-- Multiple prompt selection options including custom prompts
-- Configurable generation parameters and flags
-- Developer testing scripts for advanced model combinations
-- Quality vs. speed trade-off options
-- Integration with various AI providers (Ollama, Google, etc.)
-
-Model Categories:
-1. Local Models: Fast, private, offline generation
-   - llama3.2:latest (recommended for general use)
-   - llama3.1:latest (higher quality, slower)
-   - mistral variants (fast debugging, lower quality)
-2. Cloud Models: Higher quality, requires internet
-   - Gemini 1.5 Pro/Flash (Google's advanced models)
-   - Various quality and speed combinations
-3. Developer Configurations: Advanced multi-model setups
-   - Specialized model combinations for different tasks
-   - High-end models for maximum quality
-   - Experimental configurations for research
-
-Prompt Options:
-- Pre-built example prompts for testing
-- Custom prompt file support
-- Default examples covering various genres
-
-Configuration Options:
-- Outline expansion control
-- Chapter revision settings
-- Debug mode activation
-- Custom generation flags
-
-Usage Workflow:
-1. Select desired model configuration from menu
-2. Choose prompt source (examples or custom)
-3. Configure additional generation flags
-4. System automatically executes Write.py with selected parameters
-
-This utility is essential for:
-- Testing new model configurations
-- Comparing generation quality across models
-- Debugging generation issues
-- Experimenting with different parameter combinations
-- Developer testing and validation
-
-Note: Some configurations require access to remote model servers
-and may have different performance characteristics.
+Fully security-hardened per CWE-94/77/78/22. Hardened input validation, error handling, and documentation.
 """
-
-import os
 import subprocess
-import shlex
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List
 import logging
 
-# Configure logging for better error tracking
+# --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Security constants
-ALLOWED_MODELS = {
+# --- Security Constants ---
+ALLOWED_MODELS = [
     'llama3.2:latest',
     'llama3.1:latest',
     'mistral:7b',
     'gemini-1.5-pro',
-    'gemini-1.5-flash'
-}
-
+    'gemini-1.5-flash',
+]
 MAX_PROMPT_LENGTH = 5000
-WHITELIST_PROMPT_CHARS = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:\'"()-')
+WHITELIST_PROMPT_CHARS = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?;:\'\"()-')
+SAFE_FLAGS = {'-debug', '-expand_outline', '-no_revision'}  # Explicit flag allow-list
 
-
-def sanitize_input(user_input: str, max_length: int = 1000, whitelist: Optional[set] = None) -> str:
+# --- Utility Functions ---
+def sanitize_input(user_input: str, max_length: int, whitelist: set) -> str:
     """
-    Sanitize user input to prevent injection attacks.
-    
-    Args:
-        user_input: Raw input from user
-        max_length: Maximum allowed length
-        whitelist: Set of allowed characters (if None, only basic alphanumeric allowed)
-    
-    Returns:
-        Sanitized input string
-    
-    Raises:
-        ValueError: If input exceeds max length or contains invalid characters
+    Sanitizes input to allow only whitelisted chars and length.
+    Raises ValueError if bad.
     """
     if not isinstance(user_input, str):
         raise ValueError("Input must be a string")
-    
     if len(user_input) > max_length:
-        raise ValueError(f"Input exceeds maximum length of {max_length} characters")
-    
-    if whitelist is None:
-        whitelist = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-')
-    
-    sanitized = ''.join(c for c in user_input if c in whitelist)
-    return sanitized
-
+        raise ValueError(f"Input exceeds max length {max_length}")
+    if any(c not in whitelist for c in user_input):
+        raise ValueError("Input contains invalid character(s)")
+    return user_input
 
 def validate_model_name(model: str) -> bool:
-    """
-    Validate that the model name is in the allowed list.
-    
-    Args:
-        model: Model name to validate
-    
-    Returns:
-        True if model is allowed, False otherwise
-    """
     return model in ALLOWED_MODELS
 
-
-def validate_file_path(file_path: str, base_dir: str = '.') -> Optional[Path]:
+def validate_file_path(file_path: str, base_dir: str = 'prompts') -> Optional[Path]:
     """
-    Validate and resolve file path safely to prevent path traversal attacks (CWE-22).
-    
-    Args:
-        file_path: Path to validate
-        base_dir: Base directory for file access
-    
-    Returns:
-        Resolved Path object if valid, None otherwise
-    
-    Raises:
-        ValueError: If path traversal attempt detected
+    Path traversal protection: Only allows files inside base_dir.
     """
     try:
         base_path = Path(base_dir).resolve()
         target_path = (base_path / file_path).resolve()
-        
-        # Ensure target is within base directory
         if not str(target_path).startswith(str(base_path)):
-            logger.error(f"Path traversal attempt detected: {file_path}")
-            raise ValueError(f"Path traversal attempt detected")
-        
-        if not target_path.exists():
+            raise ValueError("Path traversal detected")
+        if not target_path.is_file():
             logger.error(f"File does not exist: {target_path}")
             return None
-        
         return target_path
     except Exception as e:
-        logger.error(f"Path validation error: {e}")
+        logger.error(f"File path validation failed: {e}")
         return None
-
 
 def execute_command_safely(command: List[str], timeout: int = 300) -> int:
     """
-    Execute a command safely using subprocess without shell injection (CWE-77/78/88).
-    
-    Args:
-        command: List of command arguments (NOT a string)
-        timeout: Command timeout in seconds
-    
-    Returns:
-        Return code of the executed command
-    
-    Raises:
-        subprocess.TimeoutExpired: If command exceeds timeout
-        subprocess.CalledProcessError: If command fails
+    Run process using subprocess (no shell). Logs errors/results.
     """
     try:
         logger.info(f"Executing command: {' '.join(command)}")
@@ -180,155 +74,102 @@ def execute_command_safely(command: List[str], timeout: int = 300) -> int:
             capture_output=True,
             text=True
         )
-        
         if result.returncode != 0:
-            logger.warning(f"Command failed with return code {result.returncode}")
+            logger.warning(f"Process failed, code {result.returncode}")
             if result.stderr:
-                logger.error(f"Error output: {result.stderr}")
+                logger.error(f"STDERR: {result.stderr}")
         else:
-            logger.info("Command executed successfully")
-        
+            logger.info("Process succeeded")
         return result.returncode
     except subprocess.TimeoutExpired:
-        logger.error(f"Command timed out after {timeout} seconds")
+        logger.error(f"Command timed out after {timeout}s")
         raise
     except Exception as e:
-        logger.error(f"Error executing command: {e}")
+        logger.error(f"Subprocess error: {e}")
         raise
 
-
-def run_story_generation(
-    prompt: str,
-    model: str,
-    outline_model: Optional[str] = None,
-    chapter_model: Optional[str] = None,
-    flags: Optional[str] = None
-) -> int:
+def run_story_generation(prompt: str, model: str, outline_model: Optional[str]=None, chapter_model: Optional[str]=None, flags: Optional[str]=None) -> int:
     """
-    Safely execute story generation with validated parameters (CWE-94, CWE-77).
-    
-    Args:
-        prompt: Story prompt (will be validated)
-        model: AI model to use (must be in ALLOWED_MODELS)
-        outline_model: Optional outline generation model
-        chapter_model: Optional chapter generation model
-        flags: Optional generation flags
-    
-    Returns:
-        Command return code
-    
-    Raises:
-        ValueError: If validation fails
+    Validates all user parameters, builds command safely, and runs Write.py.
     """
-    try:
-        # Validate inputs
-        if not validate_model_name(model):
-            raise ValueError(f"Invalid model: {model}. Allowed models: {ALLOWED_MODELS}")
-        
-        if len(prompt) > MAX_PROMPT_LENGTH:
-            raise ValueError(f"Prompt exceeds maximum length of {MAX_PROMPT_LENGTH} characters")
-        
-        if len(prompt.strip()) == 0:
-            raise ValueError("Prompt cannot be empty")
-        
-        # Build command as list (prevents shell injection)
-        command = [
-            'python',
-            'Write.py',
-            '-Prompt',
-            prompt
-        ]
-        
-        # Add optional parameters safely
-        if outline_model and validate_model_name(outline_model):
-            command.extend(['-InitialOutlineModel', outline_model])
-        
-        if chapter_model and validate_model_name(chapter_model):
-            command.extend(['-ChapterModel', chapter_model])
-        
-        if flags:
-            # Sanitize flags - only allow specific safe flags
-            safe_flags = ['-debug', '-expand_outline', '-no_revision']
-            for flag in flags.split():
-                if flag in safe_flags:
-                    command.append(flag)
-                else:
-                    logger.warning(f"Ignoring unsafe flag: {flag}")
-        
-        # Execute safely
-        return execute_command_safely(command)
-    except ValueError as e:
-        logger.error(f"Validation error: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in story generation: {e}")
-        raise
-
+    # Validate model(s)
+    if not validate_model_name(model):
+        raise ValueError(f"Invalid main model: {model}")
+    if outline_model and not validate_model_name(outline_model):
+        raise ValueError(f"Invalid outline model: {outline_model}")
+    if chapter_model and not validate_model_name(chapter_model):
+        raise ValueError(f"Invalid chapter model: {chapter_model}")
+    # Sanitize prompt (required, strict)
+    prompt = sanitize_input(prompt, MAX_PROMPT_LENGTH, WHITELIST_PROMPT_CHARS)
+    if not prompt.strip():
+        raise ValueError("Prompt must not be empty")
+    # Build command
+    command = ['python', 'Write.py', '-Prompt', prompt]
+    if outline_model:
+        command += ['-InitialOutlineModel', outline_model]
+    if chapter_model:
+        command += ['-ChapterModel', chapter_model]
+    # Only permit explicitly whitelisted flags
+    if flags:
+        for flag in flags.split():
+            if flag in SAFE_FLAGS:
+                command.append(flag)
+            else:
+                logger.warning(f"Unsafe flag ignored: {flag}")
+    # Run it
+    return execute_command_safely(command)
 
 def load_prompt_from_file(file_path: str) -> Optional[str]:
     """
-    Safely load a prompt from a file with path traversal protection (CWE-22).
-    
-    Args:
-        file_path: Path to prompt file
-    
-    Returns:
-        Prompt text if successful, None otherwise
+    Loads prompt file after strict path traversal and file length checks.
     """
-    try:
-        # Validate file path
-        validated_path = validate_file_path(file_path, base_dir='prompts')
-        if not validated_path:
-            logger.error(f"Invalid prompt file path: {file_path}")
-            return None
-        
-        with open(validated_path, 'r', encoding='utf-8') as f:
-            content = f.read(MAX_PROMPT_LENGTH + 1)  # Read slightly more to detect overflow
-            
-            if len(content) > MAX_PROMPT_LENGTH:
-                logger.error(f"Prompt file too large: {file_path}")
-                return None
-            
-            return content.strip()
-    except Exception as e:
-        logger.error(f"Error loading prompt file: {e}")
+    validated_path = validate_file_path(file_path, base_dir='prompts')
+    if not validated_path:
+        logger.error(f"Invalid prompt file path: {file_path}")
         return None
-
+    with open(validated_path, 'r', encoding='utf-8') as f:
+        content = f.read(MAX_PROMPT_LENGTH + 1)
+        if len(content) > MAX_PROMPT_LENGTH:
+            logger.error(f"Prompt file too large: {file_path}")
+            return None
+        # Re-use sanitization for this content
+        try:
+            sanitized = sanitize_input(content.strip(), MAX_PROMPT_LENGTH, WHITELIST_PROMPT_CHARS)
+            return sanitized
+        except ValueError as e:
+            logger.error(f"Loaded prompt contains forbidden data: {e}")
+            return None
 
 def interactive_test_menu() -> None:
     """
-    Interactive testing menu with safe input handling (CWE-94, CWE-77/78/88).
+    Fully interactive CLI menu, validates all inputs, safe execution.
     """
     try:
         print("\n" + "="*60)
-        print("StoryForge Interactive Testing Utility")
+        print("StoryForge Interactive Testing Utility (Security-Hardened)")
         print("="*60)
-        
-        # Model selection
+
+        # Model picker
         print("\nAvailable Models:")
-        for i, model in enumerate(ALLOWED_MODELS, 1):
-            print(f"{i}. {model}")
-        
-        model_choice = input("\nSelect model (1-{}): ".format(len(ALLOWED_MODELS)))
-        
+        for idx, m in enumerate(ALLOWED_MODELS, 1):
+            print(f"{idx}. {m}")
+        model_choice = input(f"Select model (1-{len(ALLOWED_MODELS)}): ")
         try:
-            model_idx = int(model_choice) - 1
+            model_idx = int(model_choice.strip()) - 1
             if not 0 <= model_idx < len(ALLOWED_MODELS):
-                raise ValueError("Invalid selection")
-            selected_model = list(ALLOWED_MODELS)[model_idx]
-        except (ValueError, IndexError):
+                raise ValueError
+            selected_model = ALLOWED_MODELS[model_idx]
+        except Exception:
             logger.error("Invalid model selection")
             return
-        
-        # Prompt selection
+
+        # Prompt source
         print("\nPrompt Options:")
         print("1. Use example prompt")
         print("2. Load from file")
         print("3. Enter custom prompt")
-        
-        prompt_choice = input("\nSelect prompt option (1-3): ")
+        prompt_choice = input("Select prompt option (1-3): ").strip()
         prompt = None
-        
         if prompt_choice == '1':
             prompt = "Write a fantasy story about a young hero discovering hidden powers."
         elif prompt_choice == '2':
@@ -339,23 +180,25 @@ def interactive_test_menu() -> None:
                 return
         elif prompt_choice == '3':
             prompt = input(f"Enter custom prompt (max {MAX_PROMPT_LENGTH} chars): ")
+            try:
+                prompt = sanitize_input(prompt, MAX_PROMPT_LENGTH, WHITELIST_PROMPT_CHARS)
+            except ValueError as e:
+                logger.error(f"Invalid prompt input: {e}")
+                return
         else:
             logger.error("Invalid prompt option")
             return
-        
         if not prompt:
             logger.error("No prompt provided")
             return
-        
-        # Flags configuration
+
         print("\nOptional Flags:")
         print("-debug: Enable debug mode")
         print("-expand_outline: Expand story outline")
         print("-no_revision: Skip chapter revisions")
-        
-        flags = input("\nEnter flags (space-separated, or press Enter for none): ")
-        
-        # Execute story generation
+        flags = input("Enter flags (space-separated, or press Enter for none): ").strip()
+
+        # Run generation
         logger.info("Starting story generation...")
         try:
             return_code = run_story_generation(
@@ -363,7 +206,6 @@ def interactive_test_menu() -> None:
                 model=selected_model,
                 flags=flags if flags else None
             )
-            
             if return_code == 0:
                 print("\n✓ Story generation completed successfully!")
             else:
@@ -371,13 +213,12 @@ def interactive_test_menu() -> None:
         except Exception as e:
             logger.error(f"Story generation error: {e}")
             print(f"\n✗ Error: {e}")
-    
+
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user")
     except Exception as e:
         logger.error(f"Unexpected error in menu: {e}")
         print(f"\n✗ Unexpected error: {e}")
-
 
 if __name__ == "__main__":
     try:
